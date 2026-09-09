@@ -41,13 +41,25 @@ class WebDAVClient:
         # 确保远程目录存在
         self._ensure_remote_dir(os.path.dirname(remote_path))
         
-        # 上传文件
+        # 获取文件大小
+        file_size = os.path.getsize(local_path)
+        logger.info(f"开始上传: {remote_path} ({self._format_size(file_size)})")
+        
+        # 上传文件，设置超时
         with open(local_path, 'rb') as f:
-            response = self.session.put(url, data=f)
+            response = self.session.put(url, data=f, timeout=(30, 600))
             response.raise_for_status()
         
         logger.info(f"上传成功: {remote_path}")
         return True
+    
+    def _format_size(self, size_bytes):
+        """格式化文件大小"""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024:
+                return f"{size_bytes:.2f} {unit}"
+            size_bytes /= 1024
+        return f"{size_bytes:.2f} TB"
     
     def _ensure_remote_dir(self, remote_dir):
         """确保远程目录存在"""
@@ -106,13 +118,22 @@ def download_file(url, local_path):
     """下载文件"""
     try:
         logger.info(f"开始下载: {url}")
-        response = requests.get(url, stream=True, timeout=300, verify=False)
+        response = requests.get(url, stream=True, timeout=(30, 300), verify=False)
         response.raise_for_status()
         
+        # 获取文件大小
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        
         with open(local_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
+            for chunk in response.iter_content(chunk_size=65536):
                 if chunk:
                     f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        if downloaded % (1024 * 1024) < 65536:  # 每MB打印一次
+                            logger.info(f"下载进度: {percent:.1f}% ({downloaded}/{total_size})")
         
         logger.info(f"下载完成: {local_path}")
         return True
