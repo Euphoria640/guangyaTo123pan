@@ -24,6 +24,50 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class ProgressFile:
+    """带进度显示的文件包装类"""
+    
+    def __init__(self, file_path, total_size):
+        self.file_path = file_path
+        self.total_size = total_size
+        self.uploaded = 0
+        self.last_log_time = 0
+        self.file = open(file_path, 'rb')
+    
+    def read(self, chunk_size=65536):
+        data = self.file.read(chunk_size)
+        if data:
+            self.uploaded += len(data)
+            self._log_progress()
+        return data
+    
+    def _log_progress(self):
+        import time
+        current_time = time.time()
+        # 每3秒打印一次进度
+        if current_time - self.last_log_time >= 3 or self.uploaded == self.total_size:
+            if self.total_size > 0:
+                percent = (self.uploaded / self.total_size) * 100
+                logger.info(f"上传进度: {percent:.1f}% ({self.uploaded}/{self.total_size})")
+            self.last_log_time = current_time
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.file.close()
+        return False
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        data = self.read()
+        if not data:
+            raise StopIteration
+        return data
+
+
 class WebDAVClient:
     """WebDAV客户端"""
     
@@ -45,10 +89,12 @@ class WebDAVClient:
         file_size = os.path.getsize(local_path)
         logger.info(f"开始上传: {remote_path} ({self._format_size(file_size)})")
         
+        # 创建带进度的文件包装
+        progress_file = ProgressFile(local_path, file_size)
+        
         # 上传文件，设置超时
-        with open(local_path, 'rb') as f:
-            response = self.session.put(url, data=f, timeout=(30, 600))
-            response.raise_for_status()
+        response = self.session.put(url, data=progress_file, timeout=(30, 1800))
+        response.raise_for_status()
         
         logger.info(f"上传成功: {remote_path}")
         return True
