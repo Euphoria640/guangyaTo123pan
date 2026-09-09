@@ -1,0 +1,41 @@
+name: Upload to 123Pan
+
+on:
+  workflow_dispatch:
+    inputs:
+      strm_folder:
+        description: 'STRM文件所在文件夹路径'
+        required: true
+        default: 'strm_files'
+      upload_path:
+        description: '123云盘保存路径'
+        required: true
+        default: '/'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+    
+    - name: Upload files to 123Pan
+      env:
+        WEBDAV_ADDRESS: ${{ secrets.WEBDAV_ADDRESS }}
+        WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
+        WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
+      run: |
+        python scripts/upload.py \
+          --strm-folder "${{ github.event.inputs.strm_folder }}" \
+          --upload-path "${{ github.event.inputs.upload_path }}"
