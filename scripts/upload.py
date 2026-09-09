@@ -8,10 +8,13 @@ import sys
 import argparse
 import logging
 import requests
+import urllib3
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 import tempfile
 import shutil
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 配置日志
 logging.basicConfig(
@@ -103,7 +106,7 @@ def download_file(url, local_path):
     """下载文件"""
     try:
         logger.info(f"开始下载: {url}")
-        response = requests.get(url, stream=True, timeout=300)
+        response = requests.get(url, stream=True, timeout=300, verify=False)
         response.raise_for_status()
         
         with open(local_path, 'wb') as f:
